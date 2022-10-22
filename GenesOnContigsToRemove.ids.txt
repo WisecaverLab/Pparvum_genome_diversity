@@ -1,0 +1,20 @@
+# Manually removed bacterial contamination at ends of 12B1 scaffolds 8 and 32
+g2235.t1_12B1
+g2236.t1_12B1
+g2236.t2_12B1
+g2237.t1_12B1
+g2238.t1_12B1
+g2239.t1_12B1
+g2240.t1_12B1
+g2241.t1_12B1
+g2242.t1_12B1
+g2243.t1_12B1
+g6975.t1_12B1
+g6976.t1_12B1
+g6977.t1_12B1
+g6978.t1_12B1
+g6979.t1_12B1
+g6980.t1_12B1
+g6981.t1_12B1
+g6982.t1_12B1
+g6983.t1_12B1

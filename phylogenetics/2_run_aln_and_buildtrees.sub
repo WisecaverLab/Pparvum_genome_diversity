@@ -1,0 +1,96 @@
+#!/bin/bash
+#SBATCH --job-name=buildtrees
+#SBATCH --account=jwisecav
+#SBATCH --mail-type=END,FAIL
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --time=12:00:00     
+#SBATCH --output=slurm-out/treejobs/%x.o%j
+#SBATCH --error=slurm-out/treejobs/%x.e%j
+
+# usage: export LIST='list10'; sbatch --array=1-2000 --mail-user=$EMAIL scripts/2_run_aln_and_buildtrees.sub
+
+MINLEN=150
+
+CWD=$PWD
+RDIR=`ls OrthoFinder`
+FASTADIR="$PWD/OrthoFinder/$RDIR/Orthogroup_Sequences"
+ALNDIR="$PWD/OrthoFinder/$RDIR/MultipleSequenceAlignments_GUIDANCE"
+TREEDIR="$PWD/OrthoFinder/$RDIR/Gene_Trees_IQTREE"
+OGFILE="$PWD/OrthoFinder/$RDIR/Orthogroups/Orthogroups_${LIST}.txt"
+
+OG=`sed -n "${SLURM_ARRAY_TASK_ID}p" $OGFILE | cut -d ':' -f 1`
+if [ -z "$OG" ]; then       
+	exit 0
+fi
+
+echo $OG: JOBID $SLURM_JOB_ID  TASKID $SLURM_ARRAY_TASK_ID >> slurm-out/treejobs.$SLURM_ARRAY_JOB_ID
+
+date
+echo Building $OG phylogeny
+echo
+
+if [ ! -d "$ALNDIR" ]; then mkdir $ALNDIR; fi
+if [ ! -d "$TREEDIR" ]; then mkdir $TREEDIR; fi
+
+module load conda-env/env.genomics
+module load guidance
+module load trimal
+module load iqtree
+module load notung
+
+### Run Guidance Codon Alignment
+if [ -d "$ALNDIR/$OG" ]; then rm -rf $ALNDIR/$OG; fi
+echo guidance --seqFile $FASTADIR/$OG.fa --msaProgram MAFFT --seqType codon --outDir $ALNDIR/$OG
+guidance --seqFile $FASTADIR/$OG.fa --msaProgram MAFFT --seqType codon --outDir $ALNDIR/$OG
+
+cp $ALNDIR/$OG/MSA.MAFFT.aln.With_Names $ALNDIR/$OG.aln
+
+cd $ALNDIR
+tar -zcvf $OG.guidance.tar.gz $OG
+rm -rf $OG
+cd $CWD
+
+echo trimal -nogaps -in $ALNDIR/$OG.aln -out $ALNDIR/$OG.trim.aln
+trimal -nogaps -in $ALNDIR/$OG.aln -out $ALNDIR/$OG.trim.aln
+
+### Check Trimmed Alignment Length
+PRENUM=`grep ">" $ALNDIR/$OG.aln | wc -l`
+NEWNUM=`grep ">" $ALNDIR/$OG.trim.aln | wc -l`
+PRELEN=`python scripts/aln_len.py $ALNDIR/$OG.aln`
+NEWLEN=`python scripts/aln_len.py $ALNDIR/$OG.trim.aln`
+
+echo -e "\nFLAG: $GENE alignment length pre trimming = $PRELEN"
+echo -e "FLAG: $GENE alignment length post trimming = $NEWLEN"
+echo -e "FLAG: $GENE seq count pre trimming = $PRENUM"
+echo -e "FLAG: $GENE seq count post trimming = $NEWNUM\n"
+
+if [[ "$NEWLEN" -lt "$MINLEN" ]]; then
+	echo -e "\nSkipping $GENE : trimmed alignment length $NEWLEN < minimum $MINLEN\n"
+	exit 0
+fi
+
+### Run IGTREE phylogenetic analysis
+if [ ! -d "$TREEDIR/$OG" ]; then mkdir $TREEDIR/$OG; fi
+echo iqtree -s $ALNDIR/$OG.trim.aln -alrt 1000 -bb 1000 -pre $TREEDIR/$OG/$OG
+iqtree -s $ALNDIR/$OG.trim.aln -alrt 1000 -bb 1000 -pre $TREEDIR/$OG/$OG
+
+### Midpoint root tree
+echo python scripts/mpr_tree.py $TREEDIR/$OG/$OG.contree
+python scripts/mpr_tree.py $TREEDIR/$OG/$OG.contree
+
+### Root using NOTUNG 
+SPECIESTREE="OrthoFinder/$RDIR/Species_Tree/SpeciesTree_rooted_node_labels.txt"
+
+echo java -jar /depot/jwisecav/apps/bell/notung/Notung-2.9.1.5.jar --root --treeoutput newick --nolosses -g $TREEDIR/$OG/$OG.mpr.tree -s $SPECIESTREE --infertransfers true --speciestag postfix --usegenedir
+java -jar /depot/jwisecav/apps/bell/notung/Notung-2.9.1.5.jar --root --treeoutput newick --nolosses -g $TREEDIR/$OG/$OG.mpr.tree -s $SPECIESTREE --infertransfers true --speciestag postfix --usegenedir
+
+mv $TREEDIR/$OG/$OG.mpr.tree $TREEDIR/$OG.mpr.tree
+mv $TREEDIR/$OG/$OG.mpr.tree.rooting.0 $TREEDIR/$OG.ntr.tree
+
+cd $TREEDIR
+tar -zcvf $OG.iqtree.tar.gz $OG
+rm -rf $OG
+cd $CWD
+
+

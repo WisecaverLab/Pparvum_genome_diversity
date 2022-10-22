@@ -1,0 +1,49 @@
+#!/bin/bash
+#SBATCH --job-name=of_nucl
+#SBATCH --account=jwisecav
+#SBATCH --mail-user=jwisecav@purdue.edu
+#SBATCH --mail-type=END,FAIL
+#SBATCH --nodes=1
+#SBATCH --ntasks=128
+#SBATCH --time=336:00:00     
+#SBATCH --output=slurm-out/%x.o%j
+#SBATCH --error=slurm-out/%x.e%j
+
+# USAGE: sbatch --mail-user=$EMAIL scripts/1_run_orthofinder.sub 
+
+module load orthofinder
+module load blast
+
+### Create temporary directory
+TIME=`date +%s`
+TMPDIR="/tmp/of_nucl_$TIME"
+OFDIR='OrthoFinder'
+
+if [ ! -d "$TMPDIR" ]; then mkdir $TMPDIR; fi
+if [ -d "$OFDIR" ]; then rm -rf $OFDIR; fi
+
+### Run Orthofinder
+date
+echo orthofinder -X -d -f fasta -S blast_nucl -t 128 -p $TMPDIR -o $OFDIR
+orthofinder -X -d -f fasta -S blast_nucl -t 128 -p $TMPDIR -o $OFDIR
+
+### Create submission lists for tree building
+RDIR=`ls OrthoFinder`
+MAXZEROS=5
+MAXCOUNT=1000
+python scripts/parse_orthofinder.py OrthoFinder/$RDIR/Orthogroups/Orthogroups.GeneCount.tsv $MAXZEROS $MAXCOUNT
+
+
+### Archive large directories
+cd OrthoFinder/$RDIR
+
+tar -zcvf Gene_Trees.tar.gz Gene_Trees
+rm -rf Gene_Trees
+
+tar -zcvf Resolved_Gene_Trees.tar.gz Resolved_Gene_Trees
+rm -rf Resolved_Gene_Trees
+
+tar -zcvf WorkingDirectory.tar.gz WorkingDirectory
+rm -rf WorkingDirectory
+
+

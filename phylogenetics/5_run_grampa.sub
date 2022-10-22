@@ -1,0 +1,29 @@
+#!/bin/bash
+#SBATCH --job-name=grampa
+#SBATCH --account=jwisecav
+#SBATCH --mail-user=jwisecav@purdue.edu
+#SBATCH --mail-type=END,FAIL
+#SBATCH --nodes=1
+#SBATCH --ntasks=128
+#SBATCH --time=48:00:00     
+#SBATCH --output=%x.o%j
+#SBATCH --error=%x.e%j
+
+module load grampa
+
+cd ../../../figshare/orthofinder/Species_Tree
+
+SPECIESTREE='Supermatrix_iqtree_dna_rootstrap.treefile.tre'
+GENETREES='scogs_notungrooted.trees'
+
+#grampa.py -p 100 -s $SPECIESTREE -g $GENETREES -o grampa_scogs_ntrgenetrees
+#grampa.py -p 100 -s $SPECIESTREE -g $GENETREES -o grampa_scogs_ntrgenetrees_UTEX2797 -h1 UTEX2797
+grampa.py -p 100 -s $SPECIESTREE -g $GENETREES -o grampa_scogs_ntrgenetrees_UTEX2797_12A1 -h1 UTEX2797,12A1
+
+GENETREES='all_notungrooted.trees'
+
+#grampa.py -p 100 -s $SPECIESTREE -g $GENETREES -o grampa_all_ntrgenetrees
+#grampa.py -p 100 -s $SPECIESTREE -g $GENETREES -o grampa_all_ntrgenetrees_UTEX2797 -h1 UTEX2797
+grampa.py -p 100 -s $SPECIESTREE -g $GENETREES -o grampa_all_ntrgenetrees_UTEX2797_12A1 -h1 UTEX2797,12A1
+
+
